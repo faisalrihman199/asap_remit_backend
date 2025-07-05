@@ -10,6 +10,7 @@
     "@silamoney/sdk": "^1.0.1",
     "base64url": "^3.0.1",
     "bcryptjs": "^3.0.2",
+    "cors": "^2.8.5",
     "dotenv": "^17.0.1",
     "ethers": "^6.15.0",
     "express": "^5.1.0",
