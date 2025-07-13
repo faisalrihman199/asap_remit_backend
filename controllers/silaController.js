@@ -1,0 +1,329 @@
+import sila from '../services/silaSDK.js';
+import { v4 as uuidv4 } from 'uuid';
+import moment from 'moment';
+import axios from 'axios';
+import models from '../models/index.js'; 
+
+// Configure Sila
+sila.configure({
+    key: '7ddbe59d1424ce53f72cdbc3bf166d1e1cd55902586f290e0e088cd6f9f93ab1', // Add your private key here. USE ENV VARIABLE
+    handle: 'asapremit-sandbox-2', // Add your app handle here
+})
+sila.setEnvironment('sandbox');
+
+// Helper Functions
+const generateValidSSN = () => {
+  const area = String(Math.ceil(Math.random() * 898)).padStart(3, '0');
+  const group = String(Math.ceil(Math.random() * 98)).padStart(2, '0');
+  const serial = String(Math.ceil(Math.random() * 9998)).padStart(4, '0');
+  return `${area}-${group}-${serial}`;
+};
+
+const plaidToken = async () => {
+  try {
+    const response = await axios.post('https://sandbox.plaid.com/link/item/create', {
+      public_key: process.env.PLAID_CLIENT_ID,
+      initial_products: ['transactions'],
+      institution_id: 'ins_109508',
+      credentials: { username: 'user_good', password: 'pass_good' },
+    });
+    const { public_token: token, accounts } = response.data;
+    return { token, accountId: accounts?.[0]?.account_id };
+  } catch (error) {
+    console.error('Plaid error:', error);
+    return {};
+  }
+};
+
+export const checkHandle = async (req, res) => {
+  try {
+    const { handle } = req.query;
+    const response = await sila.checkHandle(handle);
+    res.status(response.statusCode).json(response.data);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
+
+
+
+export const registerUser = async (req, res) => {
+  try {
+    const {
+      firstName, lastName, address, city, state, zip,
+      phone, email, dob, handle,
+    } = req.body;
+
+    const userId = req.user.uid; 
+
+    // ✅ Generate wallet
+    const wallet = sila.generateWallet();
+    const ssn = generateValidSSN();
+
+    // ✅ Create Sila User object
+    const user = new sila.User();
+    Object.assign(user, {
+      firstName,
+      lastName,
+      address,
+      city,
+      state,
+      zip,
+      phone,
+      email,
+      dateOfBirth: dob,
+      cryptoAddress: wallet.address,
+      ssn,
+      handle,
+    });
+    user.wallet = wallet;
+
+    // ✅ Register on Sila
+    const response = await sila.register(user);
+
+    if (response.data.success) {
+      await models.SilaUser.create({
+        user_id: userId,
+        userHandle: handle,
+        firstName,
+        lastName,
+        email,
+        phone,
+        address,
+        city,
+        state,
+        zip,
+        dob,
+        ssn,
+        cryptoAddress: wallet.address,
+        privateKey: wallet.privateKey,
+        walletNickname: 'default',
+        accountName: null,
+        kycStatus: 'not_requested',
+        bankLinkStatus: 'unlinked',
+        lastSilaReferenceId: response.data.sila_reference_id || null,
+      });
+    }
+
+    res.status(response.statusCode).json({
+      ...response.data,
+      wallet: {
+        address: wallet.address,
+        privateKey: wallet.privateKey,
+      }
+    });
+
+  } catch (err) {
+    console.error('RegisterUser error:', err);
+    res.status(500).json({ error: err.message });
+  }
+};
+
+export const requestKYC = async (req, res) => {
+  try {
+    const userId = req.user.uid;
+
+    const silaUser = await models.SilaUser.findOne({ where: { user_id: userId } });
+
+    if (!silaUser) {
+      return res.status(404).json({ error: 'Sila user not found.' });
+    }
+
+    const { userHandle, privateKey } = silaUser;
+
+    const response = await sila.requestKYC(userHandle, privateKey);
+
+    if (response.data.status === 'SUCCESS') {
+      await silaUser.update({ kycStatus: 'pending' });
+    }
+
+    res.status(response.statusCode).json(response.data);
+  } catch (err) {
+    console.error('requestKYC error:', err);
+    res.status(500).json({ error: err.message });
+  }
+};
+
+export const checkKYC = async (req, res) => {
+  try {
+    const userId = req.user.uid;
+
+    const silaUser = await models.SilaUser.findOne({ where: { user_id: userId } });
+
+    if (!silaUser) {
+      return res.status(404).json({ error: 'Sila user not found.' });
+    }
+
+    const { userHandle, privateKey } = silaUser;
+
+    const response = await sila.checkKYC(userHandle, privateKey);
+
+    if (response.data.status === 'SUCCESS' && response.data.message?.includes('passed')) {
+      await silaUser.update({ kycStatus: 'passed' });
+    }
+
+    res.status(response.statusCode).json(response.data);
+  } catch (err) {
+    console.error('checkKYC error:', err);
+    res.status(500).json({ error: err.message });
+  }
+};
+
+
+
+export const linkBankDirect = async (req, res) => {
+  try {
+    const userId = req.user.uid;
+    const { accountNumber, routingNumber, accountName } = req.body;
+
+    if (!accountNumber || !routingNumber || !accountName) {
+      return res.status(400).json({ error: 'accountNumber, routingNumber, and accountName are required.' });
+    }
+
+    const silaUser = await models.SilaUser.findOne({ where: { user_id: userId } });
+
+    if (!silaUser) {
+      return res.status(404).json({ error: 'Sila user not found.' });
+    }
+
+    const { userHandle, privateKey } = silaUser;
+
+    const response = await sila.linkAccountDirect(
+      userHandle,
+      privateKey,
+      accountNumber,
+      routingNumber,
+      accountName
+    );
+
+    if (response.data.status === 'SUCCESS') {
+      await silaUser.update({ bankLinkStatus: 'linked', accountName });
+    }
+
+    res.status(response.statusCode).json(response.data);
+  } catch (err) {
+    console.error('linkBankDirect error:', err);
+    res.status(500).json({ error: err.message });
+  }
+};
+
+
+export const linkBankViaPlaid = async (req, res) => {
+  try {
+    const userId = req.user.uid;
+    const { processorToken, accountName } = req.body;
+
+    if (!processorToken || !accountName) {
+      return res.status(400).json({ error: 'processorToken and accountName are required.' });
+    }
+
+    const silaUser = await models.SilaUser.findOne({ where: { user_id: userId } });
+
+    if (!silaUser) {
+      return res.status(404).json({ error: 'Sila user not found.' });
+    }
+
+    const { userHandle, privateKey } = silaUser;
+
+    const response = await sila.linkAccount(
+      userHandle,
+      privateKey,
+      processorToken,
+      accountName,
+      undefined,
+      'processor' // important to mark this as a processor token
+    );
+
+    if (response.data.status === 'SUCCESS') {
+      await silaUser.update({ bankLinkStatus: 'linked', accountName });
+    }
+
+    res.status(response.statusCode).json(response.data);
+  } catch (err) {
+    console.error('linkBankViaPlaid error:', err);
+    res.status(500).json({ error: err.message });
+  }
+};
+
+export const getAccounts = async (req, res) => {
+  try {
+    const userId = req.user.uid;
+
+    const silaUser = await models.SilaUser.findOne({ where: { user_id: userId } });
+    if (!silaUser) {
+      return res.status(404).json({ error: 'Sila user not found.' });
+    }
+
+    const response = await sila.getAccounts(silaUser.userHandle, silaUser.privateKey);
+    res.status(response.statusCode).json(response.data);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
+
+
+export const getAccountBalance = async (req, res) => {
+  try {
+    const userId = req.user.uid;
+    const { accountName } = req.query;
+
+    if (!accountName) {
+      return res.status(400).json({ error: 'accountName is required in query.' });
+    }
+
+    const silaUser = await models.SilaUser.findOne({ where: { user_id: userId } });
+    if (!silaUser) {
+      return res.status(404).json({ error: 'Sila user not found.' });
+    }
+
+    const response = await sila.getAccountBalance(
+      silaUser.userHandle,
+      silaUser.privateKey,
+      accountName
+    );
+
+    res.status(response.statusCode).json(response.data);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
+
+export const issueSila = async (req, res) => {
+  try {
+    const userId = req.user.uid;
+    const { amount, accountName } = req.body;
+
+    if (!amount || isNaN(amount)) {
+      return res.status(400).json({ error: 'Valid amount is required.' });
+    }
+
+    const silaUser = await models.SilaUser.findOne({ where: { user_id: userId } });
+
+    if (!silaUser) {
+      return res.status(404).json({ error: 'Sila user not found.' });
+    }
+
+    const transaction_idempotency_id = uuidv4(); // Ensures no duplicate processing
+
+    const response = await sila.issueSila(
+      parseInt(amount),
+      silaUser.userHandle,
+      silaUser.privateKey,
+      accountName || silaUser.accountName || 'default',
+      undefined, // descriptor
+      undefined, // business_uuid
+      undefined, // processing_type
+      undefined, // cardName
+      undefined, // source_id
+      undefined, // destination_id
+      transaction_idempotency_id
+    );
+
+    res.status(response.statusCode).json(response.data);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};

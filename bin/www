@@ -1,0 +1,16 @@
+#!/usr/bin/env node
+
+const app = require('../app');
+const http = require('http');
+const server = http.createServer(app);
+var db = require('../config/db')
+db.sync() // Ensure that the database tables are created
+.then(() => {
+    console.log("Models Created Successfully!");
+    
+})
+.catch(err => {
+    console.error('Error syncing database:', err);
+});
+const PORT = process.env.PORT || 3000;
+server.listen(PORT, () => console.log(`Server running on port ${PORT}`));
