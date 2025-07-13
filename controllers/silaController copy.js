@@ -6,10 +6,10 @@ import axios from 'axios';
 
 // Configure Sila
 sila.configure({
-    key: '7ddbe59d1424ce53f72cdbc3bf166d1e1cd55902586f290e0e088cd6f9f93ab1', // Add your private key here. USE ENV VARIABLE
-    handle: 'asapremit-sandbox-2', // Add your app handle here
-})
-sila.setEnvironment('sandbox');
+    key: process.env.SILA_PRIVATE_KEY,
+    handle: process.env.SILA_APP_HANDLE,
+});
+sila.setEnvironment(process.env.SILA_ENV || 'sandbox'); 
 
 // Helper Functions
 const generateValidSSN = () => {
