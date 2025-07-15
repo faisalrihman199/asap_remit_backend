@@ -12,6 +12,10 @@ const {
   issueSila,
   checkKYC,
   getAccounts,
+  getWallets,
+  getTransactions,
+  cancelTransaction,
+  getUserWallet,
 }=require('../controllers/silaController.js');
 
 
@@ -23,7 +27,14 @@ router.get('/check-kyc',authMiddleware, checkKYC);
 router.post('/link-account/direct',authMiddleware, linkBankDirect);
 router.post('/link-account/plaid',authMiddleware, linkBankViaPlaid);
 router.get('/accounts',authMiddleware, getAccounts);
+router.get('/wallets',authMiddleware, getWallets);
+router.get('/user-wallet',authMiddleware, getUserWallet);
 router.get('/account-balance',authMiddleware, getAccountBalance);
-router.post('/issue-sila',authMiddleware, issueSila);
+
+// transactions 
+router.post('/sila-transact',authMiddleware, issueSila);
+router.get('/transactions',authMiddleware, getTransactions);
+router.get('/transaction/cancel',authMiddleware, cancelTransaction);
+
 
 module.exports = router;

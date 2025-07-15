@@ -291,11 +291,53 @@ export const getAccountBalance = async (req, res) => {
   }
 };
 
+export const getWallets = async (req, res) => {
+  try {
+    const userId = req.user.uid;
+    const { walletId } = req.query;
+    const silaUser = await models.SilaUser.findOne({ where: { user_id: userId } });
+    if (!silaUser) {
+      return res.status(404).json({ error: 'Sila user not found.' });
+    }
+    const filters={
+        uuid:walletId
+      }
+    const response = await sila.getWallets(
+      silaUser.userHandle,
+      silaUser.privateKey,
+      filters
+    );
+
+    res.status(response.statusCode).json(response.data);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+export const getUserWallet = async (req, res) => {
+  try {
+    const userId = req.user.uid;
+    const silaUser = await models.SilaUser.findOne({ where: { user_id: userId } });
+    if (!silaUser) {
+      return res.status(404).json({ error: 'Sila user not found.' });
+    }
+   
+    const response = await sila.getWallet(
+      silaUser.userHandle,
+      silaUser.privateKey
+    );
+
+    res.status(response.statusCode).json(response.data);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
+//transactions
 
 export const issueSila = async (req, res) => {
   try {
     const userId = req.user.uid;
-    const { amount, accountName } = req.body;
+    const { amount, accountName,source_id,destination_id } = req.body;
 
     if (!amount || isNaN(amount)) {
       return res.status(400).json({ error: 'Valid amount is required.' });
@@ -318,8 +360,8 @@ export const issueSila = async (req, res) => {
       undefined, // business_uuid
       undefined, // processing_type
       undefined, // cardName
-      undefined, // source_id
-      undefined, // destination_id
+      source_id, // source_id
+      destination_id, // destination_id
       transaction_idempotency_id
     );
 
@@ -328,3 +370,48 @@ export const issueSila = async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 };
+
+export const getTransactions = async (req, res) => {
+  try {
+    const userId = req.user.uid;
+
+    const silaUser = await models.SilaUser.findOne({ where: { user_id: userId } });
+
+    if (!silaUser) {
+      return res.status(404).json({ error: 'Sila user not found.' });
+    }
+
+    const response = await sila.getTransactions(
+      silaUser.userHandle,
+      silaUser.privateKey,
+      
+    );
+
+    res.status(response.statusCode).json(response.data);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+export const cancelTransaction = async (req, res) => {
+  try {
+    const userId = req.user.uid;
+    const { transactionId } = req.query; 
+
+    const silaUser = await models.SilaUser.findOne({ where: { user_id: userId } });
+
+    if (!silaUser) {
+      return res.status(404).json({ error: 'Sila user not found.' });
+    }
+
+    const response = await sila.cancelTransaction(
+      silaUser.userHandle,
+      silaUser.privateKey,
+      transactionId
+    );
+
+    res.status(response.statusCode).json(response.data);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+

@@ -587,7 +587,7 @@ const issueSila = (
   const fullHandle = getFullHandle(handle);
   const body = setHeaders({ header: {} }, fullHandle);
   body.amount = amount;
-  body.message = 'issue_msg';
+  body.message = 'header_msg';
   if (cardName == undefined && accountName == undefined && sourceId == undefined) {
     accountName = 'default';
   }
@@ -610,7 +610,7 @@ const issueSila = (
     body.transaction_idempotency_identifier = transactionIdempotencyIdentifier;
   }
 
-  return makeRequest('issue_sila', body, privateKey);
+  return makeRequest('transact', body, privateKey);
 };
 
 /**
@@ -732,7 +732,6 @@ const cancelTransaction = (userHandle, userPrivateKey, transactionId) => {
   const fullHandle = getFullHandle(userHandle);
   const body = setHeaders({ header: {} }, fullHandle);
   body.transaction_id = transactionId;
-
   return makeRequest('cancel_transaction', body, userPrivateKey);
 };
 
@@ -1048,7 +1047,6 @@ const updateWallet = (handle, privateKey, walletProperties = {}) => {
 const getWallet = (handle, privateKey) => {
   const fullHandle = getFullHandle(handle);
   const body = setHeaders({ header: {} }, fullHandle);
-
   return makeRequest('get_wallet', body, privateKey);
 };
 
