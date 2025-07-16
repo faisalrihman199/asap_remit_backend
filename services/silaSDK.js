@@ -444,7 +444,7 @@ const initiateAdvancedKYC = async (userHandle, userPrivateKey) => {
   const fullHandle = getFullHandle(userHandle);
   const body = setHeaders({ header: {} }, fullHandle);
   body.message = 'header_msg'; // Required by Sila
-  body.flow = process.env.SILA_KYC_FLOW; 
+  body.flow = '8b188dfb-4d74-4d35-b904-b8bcb9f3b3b7'; 
 
   return makeRequest('kyc', body, userPrivateKey, undefined, 'post');
 };
