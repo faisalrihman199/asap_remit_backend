@@ -2,12 +2,13 @@ const speakeasy = require('speakeasy');
 const nodemailer = require('nodemailer');
 const twilio = require('twilio');
 const template = require('./template');
+const crypto = require('crypto');
 
-const OTP_SECRET_SALT = process.env.OTP_SECRET_SALT || 'my_otp_salt';
 const OTP_EXPIRY_MINUTES = 5;
 const STEP_SECONDS = OTP_EXPIRY_MINUTES * 60;
 
-const usedOtps = new Set(); // Cache of used OTPs for temporary invalidation
+const usedOtps = new Set();
+const otpSecrets = new Map(); // Store { identifier -> secret }
 
 const transporter = nodemailer.createTransport({
   service: 'gmail',
@@ -17,23 +18,28 @@ const transporter = nodemailer.createTransport({
   },
 });
 
-const twilioClient = twilio(process.env.TWILIO_SID, process.env.TWILIO_AUTH_TOKEN);
+const twilioClient = twilio(
+  process.env.TWILIO_SID,
+  process.env.TWILIO_AUTH_TOKEN
+);
 
-function getSecret(identifier) {
-  return `${identifier}-${OTP_SECRET_SALT}`;
+// Generate a secure random secret
+function generateRandomSecret() {
+  return crypto.randomBytes(20).toString('hex'); // 40-character secret
 }
 
 // Send OTP
 exports.sendOTP = async (identifier, method = 'email') => {
-  const secret = getSecret(identifier);
+  const secret = generateRandomSecret();
+  otpSecrets.set(identifier, secret); // Save secret for verification
 
   const token = speakeasy.totp({
     secret,
     encoding: 'ascii',
     step: STEP_SECONDS,
   });
-  console.log("OTP is :", token);
-  
+
+  console.log('OTP is:', token);
 
   if (method === 'email') {
     await transporter.sendMail({
@@ -50,13 +56,20 @@ exports.sendOTP = async (identifier, method = 'email') => {
     });
   }
 
+  // Cleanup secret after expiry
+  setTimeout(() => otpSecrets.delete(identifier), OTP_EXPIRY_MINUTES * 60 * 1000);
+
   return { success: true, message: 'OTP sent successfully.' };
 };
 
 // Verify OTP
 exports.verifyOtp = (identifier, token) => {
-  const secret = getSecret(identifier);
+  const secret = otpSecrets.get(identifier);
   const tokenKey = `${identifier}-${token}`;
+
+  if (!secret) {
+    return { success: false, message: 'No OTP sent or it expired.' };
+  }
 
   if (usedOtps.has(tokenKey)) {
     return { success: false, message: 'OTP already used.' };
@@ -72,19 +85,9 @@ exports.verifyOtp = (identifier, token) => {
 
   if (verified) {
     usedOtps.add(tokenKey);
-    setTimeout(() => usedOtps.delete(tokenKey), OTP_EXPIRY_MINUTES * 60 * 1000); // Auto cleanup
+    setTimeout(() => usedOtps.delete(tokenKey), OTP_EXPIRY_MINUTES * 60 * 1000);
     return { success: true, message: 'OTP verified successfully.' };
   }
 
-  const currentToken = speakeasy.totp({
-    secret,
-    encoding: 'ascii',
-    step: STEP_SECONDS,
-  });
-
-  if (currentToken === token) {
-    return { success: false, message: 'OTP has expired.' };
-  }
-
-  return { success: false, message: 'Invalid OTP.' };
+  return { success: false, message: 'Invalid or expired OTP.' };
 };

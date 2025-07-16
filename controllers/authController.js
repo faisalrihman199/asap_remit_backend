@@ -54,6 +54,27 @@ exports.signup = async (req, res, next) => {
     next(err);
   }
 };
+exports.deleteUserByEmail = async (req, res, next) => {
+  try {
+    const { email } = req.query;
+
+    if (!email) {
+      return res.status(400).json({ error: 'Email is required' });
+    }
+
+    const user = await User.findOne({ where: { email } });
+
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    await user.destroy();
+
+    res.json({ success: true, message: 'User deleted successfully' });
+  } catch (err) {
+    next(err);
+  }
+};
 
 
 exports.login = async (req, res, next) => {
@@ -162,3 +183,5 @@ exports.checkUsernameAvailability = async (req, res, next) => {
     next(err);
   }
 };
+
+
