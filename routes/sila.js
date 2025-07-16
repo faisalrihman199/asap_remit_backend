@@ -1,7 +1,8 @@
 const express = require('express');
 const router = express.Router();
 const authMiddleware = require('../middleware/authMiddleware');
-
+const multer = require('multer');
+const upload = multer();
 const {
   checkHandle,
   registerUser,
@@ -17,10 +18,12 @@ const {
   cancelTransaction,
   getUserWallet,
   userHandleKey,
+  uploadKYCDocuments,
 }=require('../controllers/silaController.js');
 
 
 
+router.post('/kyc/documents',authMiddleware, upload.any(), uploadKYCDocuments);
 router.get('/check-handle',authMiddleware, checkHandle);
 router.get('/user-handle-key',authMiddleware,userHandleKey);
 router.post('/register',authMiddleware, registerUser);

@@ -2,7 +2,7 @@ import randomBytes from 'randombytes';
 import { ethers } from 'ethers';
 import uuid4 from 'uuid4';
 import fs from 'fs';
-import crypto from 'crypto';
+import crypt from 'crypto';
 import _ from 'lodash'; // changed from `lodash, { method }` to `_`
 import regeneratorRuntime from 'regenerator-runtime'; // eslint-disable-line no-unused-vars
 
@@ -14,8 +14,8 @@ import User from '../models/userSila.js';
 import Wallet from '../models/wallet.js';
 import WalletFilters from '../models/walletFilters.js';
 import { post } from '../utils/post.js';
-const lodash=_
-const method=_.method
+const lodash = _
+const method = _.method
 
 let appKey = null;
 let appHandle = null;
@@ -48,7 +48,7 @@ const sign = (message, key) => {
   if (!appKey || !key) {
     throw new Error('Unable to sign request: keys not set');
   }
-  const hash =  ethers.solidityPackedKeccak256(['string'], [message]);
+  const hash = ethers.solidityPackedKeccak256(['string'], [message]);
   const normalizeKey = key.startsWith('0x') ? key : '0x' + key;
   const signingKey = new ethers.SigningKey(normalizeKey)
   const signatureObject = signingKey.sign(hash)
@@ -176,7 +176,11 @@ const postFile = (options, filePath, fileObject) => {
       const data = new FormData();
       data.append('data', JSON.stringify(options.body));
       for (let key in fileObject) {
-        data.append(key, fileObject[key]);
+        const fileData = fileObject[key];
+        data.append(key, fileData.buffer, {
+          filename: fileData.filename || `${key}.jpg`,
+          contentType: fileData.contentType || 'image/jpeg'
+        });
       }
 
       const config = {
@@ -1119,27 +1123,27 @@ const uploadDocument = async (userHandle, userPrivateKey, document) => {
   const fullHandle = getFullHandle(userHandle);
   const body = setHeaders({ header: {} }, fullHandle);
 
-    body.name = document.name;
-    body.filename = document.filename;
+  body.name = document.name;
+  body.filename = document.filename;
 
-    var tmpFileObj = {};
-    var tmpFilePathObj = {};
+  var tmpFileObj = {};
+  var tmpFilePathObj = {};
 
-    if(document.fileBuffer) {
-      body.hash = await hashFileObject(document.fileBuffer, 'sha256');
-      tmpFileObj = {'file':document.fileObject}
-    } else {
-      body.hash = await hashFile(document.filePath, 'sha256');
-      tmpFilePathObj = {'file':fs.createReadStream(document.filePath)}
-    }
-    body.mime_type = document.mimeType;
-    body.document_type = document.documentType;
-    body.description = document.description;
-    if (document.verification_uuid) {
-      body.verification_uuid = document.verification_uuid;
-    }
+  if (document.fileBuffer) {
+    body.hash = await hashFileObject(document.fileBuffer, 'sha256');
+    tmpFileObj = { 'file': document.fileObject }
+  } else {
+    body.hash = await hashFile(document.filePath, 'sha256');
+    tmpFilePathObj = { 'file': fs.createReadStream(document.filePath) }
+  }
+  body.mime_type = document.mimeType;
+  body.document_type = document.documentType;
+  body.description = document.description;
+  if (document.verification_uuid) {
+    body.verification_uuid = document.verification_uuid;
+  }
 
-    return makeFileRequest('documents', body, tmpFilePathObj, tmpFileObj, userPrivateKey);
+  return makeFileRequest('documents', body, tmpFilePathObj, tmpFileObj, userPrivateKey);
 };
 
 /**
@@ -1149,36 +1153,36 @@ const uploadDocument = async (userHandle, userPrivateKey, document) => {
  * @param {Array} documents
  *
  */
- const uploadDocuments = async (userHandle, userPrivateKey, documents) => {
+const uploadDocuments = async (userHandle, userPrivateKey, documents) => {
   const fullHandle = getFullHandle(userHandle);
   const body = setHeaders({ header: {} }, fullHandle);
 
-    body.file_metadata = {};
-    var filePaths = {};
-    let fileObjects = {};
+  body.file_metadata = {};
+  var filePaths = {};
+  let fileObjects = {};
 
-    for (let i=0;i<documents.length;i++) {
-      let docBodyObj = {};
-      let docObj = documents[i];
-      let index = i+1;
-      docBodyObj.name = docObj.name;
-      docBodyObj.filename = docObj.filename;
+  for (let i = 0; i < documents.length; i++) {
+    let docBodyObj = {};
+    let docObj = documents[i];
+    let index = i + 1;
+    docBodyObj.name = docObj.name;
+    docBodyObj.filename = docObj.filename;
 
-      if(docObj.fileBuffer) {
-        docBodyObj.hash = await hashFileObject(docObj.fileBuffer, 'sha256');
-        fileObjects['file_'+index] = docObj.fileObject;
+    if (docObj.fileBuffer) {
+      docBodyObj.hash = await hashFileObject(docObj.fileBuffer, 'sha256');
+      fileObjects['file_' + index] = docObj.fileObject;
 
-      } else {
-        docBodyObj.hash = await hashFile(docObj.filePath, 'sha256');
-        filePaths['file_'+index] = fs.createReadStream(docObj.filePath);
-      }
-      docBodyObj.mime_type = docObj.mimeType;
-      docBodyObj.document_type = docObj.documentType;
-      docBodyObj.description = docObj.description;
-
-      body.file_metadata['file_'+index] = docBodyObj;
+    } else {
+      docBodyObj.hash = await hashFile(docObj.filePath, 'sha256');
+      filePaths['file_' + index] = fs.createReadStream(docObj.filePath);
     }
-    return makeFileRequest('documents', body, filePaths, fileObjects, userPrivateKey);
+    docBodyObj.mime_type = docObj.mimeType;
+    docBodyObj.document_type = docObj.documentType;
+    docBodyObj.description = docObj.description;
+
+    body.file_metadata['file_' + index] = docBodyObj;
+  }
+  return makeFileRequest('documents', body, filePaths, fileObjects, userPrivateKey);
 };
 
 /**
@@ -1415,7 +1419,7 @@ const certifyBusiness = (
  * @param {String} userHandle
  * @param {String} userPrivateKey
  */
-const plaidLinkToken = (user_handle, user_private_key, link_token_type=undefined, android_package_name=undefined) => {
+const plaidLinkToken = (user_handle, user_private_key, link_token_type = undefined, android_package_name = undefined) => {
   const body = setHeaders({ header: {} }, user_handle);
   body.link_token_type = link_token_type;
   body.android_package_name = android_package_name;
@@ -1456,7 +1460,7 @@ const checkPartnerKyc = ({ query_app_handle, query_user_handle }) => {
  * @returns
  */
 const updateAccount = (
-  { account_name, new_account_name, active=undefined},
+  { account_name, new_account_name, active = undefined },
   user_handle,
   user_private_key,
 ) => {
@@ -1508,11 +1512,11 @@ const getInstitutions = (
  * @param {Object} cardObject properties to send in the request
  * @returns
  */
- const linkCard = (userHandle, userPrivateKey, cardObject) => {
+const linkCard = (userHandle, userPrivateKey, cardObject) => {
   const body = setHeaders({
     header: {}
   }, userHandle);
-  body.message   = 'header_msg';
+  body.message = 'header_msg';
   body.card_name = cardObject['card_name'];
   body.account_postal_code = cardObject['account_postal_code'];
   body.token = cardObject['token'];
@@ -1560,7 +1564,7 @@ const deleteCard = (userHandle, userPrivateKey, cardName, provider) => {
  * @param {String} transactionId
  * @returns
  */
- const reverseTransaction = (userHandle, userPrivateKey, transactionId) => {
+const reverseTransaction = (userHandle, userPrivateKey, transactionId) => {
   const body = setHeaders({
     header: {}
   }, userHandle);
@@ -1578,7 +1582,7 @@ const getWebhooks = (userHandle, userPrivateKey, searchFilters) => {
   const body = setHeaders({
     header: {}
   }, userHandle);
-  body.message   = 'header_msg';
+  body.message = 'header_msg';
 
   var payload = {};
 
@@ -1609,7 +1613,7 @@ const getWebhooks = (userHandle, userPrivateKey, searchFilters) => {
  * @param {String} userPrivateKey
  * @returns
  */
-const getPaymentMethods = (userHandle, userPrivateKey, filters={}) => {
+const getPaymentMethods = (userHandle, userPrivateKey, filters = {}) => {
   const body = setHeaders({
     header: {}
   }, userHandle);
@@ -1623,7 +1627,7 @@ const getPaymentMethods = (userHandle, userPrivateKey, filters={}) => {
  * @param {Object} payload
  * @returns
  */
-const openVirtualAccount = (userHandle, userPrivateKey, payload={}) => {
+const openVirtualAccount = (userHandle, userPrivateKey, payload = {}) => {
   const body = setHeaders({
     header: {}
   }, userHandle);
@@ -1648,7 +1652,7 @@ const openVirtualAccount = (userHandle, userPrivateKey, payload={}) => {
  * @param {Object} payload
  * @returns
  */
-const updateVirtualAccount = (userHandle, userPrivateKey, payload={}) => {
+const updateVirtualAccount = (userHandle, userPrivateKey, payload = {}) => {
   const body = setHeaders({
     header: {}
   }, userHandle);
@@ -1693,7 +1697,7 @@ const getVirtualAccount = (userHandle, userPrivateKey, virtualAccountId) => {
  * @param {String} userPrivateKey
  * @returns
  */
-const getVirtualAccounts = (userHandle, userPrivateKey, filters={}) => {
+const getVirtualAccounts = (userHandle, userPrivateKey, filters = {}) => {
   const body = setHeaders({
     header: {}
   }, userHandle);
@@ -1743,7 +1747,7 @@ const closeVirtualAccount = (userHandle, userPrivateKey, virtualAccountId, accou
  * @param {Object} payload
  * @returns
  */
-const createTestVirtualAccountAchTransaction = (userHandle, userPrivateKey, payload={}) => {
+const createTestVirtualAccountAchTransaction = (userHandle, userPrivateKey, payload = {}) => {
   var body = setHeaders({
     header: {}
   }, userHandle);
@@ -1831,29 +1835,29 @@ const getWalletStatementData = (
   walletId,
   searchFilters,
 ) => {
-    const fullHandle = getFullHandle(handle);
-    const message = setHeaders({ header: {} }, fullHandle);
-    message.message = 'get_statement_data_msg';
-    message.wallet_id = walletId;
+  const fullHandle = getFullHandle(handle);
+  const message = setHeaders({ header: {} }, fullHandle);
+  message.message = 'get_statement_data_msg';
+  message.wallet_id = walletId;
 
-    var payload = {};
+  var payload = {};
 
-    if (!searchFilters) {
-      payload = {};
-    }
-    else {
-      payload = {
-        "start_month": searchFilters.startMonth,
-        "end_month": searchFilters.endMonth,
-        "page": searchFilters.page,
-        "per_page": searchFilters.perPage,
+  if (!searchFilters) {
+    payload = {};
+  }
+  else {
+    payload = {
+      "start_month": searchFilters.startMonth,
+      "end_month": searchFilters.endMonth,
+      "page": searchFilters.page,
+      "per_page": searchFilters.perPage,
 
     }
   }
 
-    message.search_filters = payload;
-    return makeRequest('get_wallet_statement_data', message, privateKey);
-  };
+  message.search_filters = payload;
+  return makeRequest('get_wallet_statement_data', message, privateKey);
+};
 
 const getStatementsData = (
   handle,
@@ -1922,7 +1926,7 @@ const resendStatements = (
 const createCkoTestingToken = (
   handle,
   cardDetails
-  ) => {
+) => {
   const fullHandle = getFullHandle(handle);
   const message = setHeaders({ header: {} }, fullHandle);
   message.message = 'header_msg';

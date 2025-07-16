@@ -2,14 +2,15 @@ import sila from '../services/silaSDK.js';
 import { v4 as uuidv4 } from 'uuid';
 import moment from 'moment';
 import axios from 'axios';
-import models from '../models/index.js'; 
+import models from '../models/index.js';
+
 
 // Configure Sila
 sila.configure({
-    key: process.env.SILA_PRIVATE_KEY,
-    handle: process.env.SILA_APP_HANDLE,
+  key: process.env.SILA_PRIVATE_KEY,
+  handle: process.env.SILA_APP_HANDLE,
 });
-sila.setEnvironment(process.env.SILA_ENV || 'sandbox'); 
+sila.setEnvironment(process.env.SILA_ENV || 'sandbox');
 
 
 // Helper Functions
@@ -56,7 +57,7 @@ export const registerUser = async (req, res) => {
       phone, email, dob, handle,
     } = req.body;
 
-    const userId = req.user.uid; 
+    const userId = req.user.uid;
 
     // ✅ Generate wallet
     const wallet = sila.generateWallet();
@@ -121,6 +122,55 @@ export const registerUser = async (req, res) => {
   }
 };
 
+export const uploadKYCDocuments = async (req, res) => {
+  try {
+    const userId = req.user.uid;
+    const silaUser = await models.SilaUser.findOne({ where: { user_id: userId } });
+
+    if (!silaUser) {
+      return res.status(404).json({ error: 'Sila user not found.' });
+    }
+
+    const { userHandle, privateKey } = silaUser;
+
+    if (!req.files || req.files.length === 0) {
+      return res.status(400).json({ error: 'No files uploaded.' });
+    }
+
+    // 👇 Build documents array using correct buffer and metadata format
+    const documents = req.files.map((file) => {
+      const { fieldname, originalname, mimetype, buffer } = file;
+
+      return {
+        name: fieldname.charAt(0).toUpperCase() + fieldname.slice(1),   // e.g. "Passport"
+        filename: originalname,                                         // e.g. "passport.jpg"
+        mimeType: mimetype,                                             // e.g. "image/jpeg"
+        documentType: 'doc_green_card',                                        // e.g. "passport", "selfie"
+        description: `Auto-uploaded ${fieldname}`,                      // Optional
+        fileBuffer: buffer,                                             // Required for hash
+        fileObject: {                                                   // 💥 Key Fix: pass wrapped object
+          buffer,
+          filename: originalname,
+          contentType: mimetype
+        }
+      };
+    });
+    console.log("Just before");
+
+    // ✅ Upload to Sila using same tested logic
+    const result = await sila.uploadDocuments(userHandle, privateKey, documents);
+
+    if (!result.data || result.data.status !== 'SUCCESS') {
+      return res.status(400).json({ error: 'Document upload failed', details: result });
+    }
+
+    return res.status(200).json({ success: true, result });
+  } catch (err) {
+    console.error('uploadUserDocuments error:', err);
+    return res.status(500).json({ error: err.message });
+  }
+};
+
 export const requestKYC = async (req, res) => {
   try {
     const userId = req.user.uid;
@@ -132,7 +182,6 @@ export const requestKYC = async (req, res) => {
     }
 
     const { userHandle, privateKey } = silaUser;
-
     const response = await sila.requestKYC(userHandle, privateKey);
 
     if (response.data.status === 'SUCCESS') {
@@ -145,6 +194,7 @@ export const requestKYC = async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 };
+
 
 export const checkKYC = async (req, res) => {
   try {
@@ -299,9 +349,9 @@ export const getWallets = async (req, res) => {
     if (!silaUser) {
       return res.status(404).json({ error: 'Sila user not found.' });
     }
-    const filters={
-        uuid:walletId
-      }
+    const filters = {
+      uuid: walletId
+    }
     const response = await sila.getWallets(
       silaUser.userHandle,
       silaUser.privateKey,
@@ -320,7 +370,7 @@ export const getUserWallet = async (req, res) => {
     if (!silaUser) {
       return res.status(404).json({ error: 'Sila user not found.' });
     }
-   
+
     const response = await sila.getWallet(
       silaUser.userHandle,
       silaUser.privateKey
@@ -339,10 +389,10 @@ export const userHandleKey = async (req, res) => {
     if (!silaUser) {
       return res.status(404).json({ error: 'Sila user not found.' });
     }
-   
-    const response ={
-      handle:silaUser.userHandle,
-      key:silaUser.privateKey
+
+    const response = {
+      handle: silaUser.userHandle,
+      key: silaUser.privateKey
     };
 
     res.status(200).json(response);
@@ -356,7 +406,7 @@ export const userHandleKey = async (req, res) => {
 export const issueSila = async (req, res) => {
   try {
     const userId = req.user.uid;
-    const { amount, accountName,source_id,destination_id } = req.body;
+    const { amount, accountName, source_id, destination_id } = req.body;
 
     if (!amount || isNaN(amount)) {
       return res.status(400).json({ error: 'Valid amount is required.' });
@@ -403,7 +453,7 @@ export const getTransactions = async (req, res) => {
     const response = await sila.getTransactions(
       silaUser.userHandle,
       silaUser.privateKey,
-      
+
     );
 
     res.status(response.statusCode).json(response.data);
@@ -414,7 +464,7 @@ export const getTransactions = async (req, res) => {
 export const cancelTransaction = async (req, res) => {
   try {
     const userId = req.user.uid;
-    const { transactionId } = req.query; 
+    const { transactionId } = req.query;
 
     const silaUser = await models.SilaUser.findOne({ where: { user_id: userId } });
 

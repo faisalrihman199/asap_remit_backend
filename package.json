@@ -2,7 +2,6 @@
   "name": "plaid-sila-backend",
   "version": "1.0.0",
   "main": "app.js",
-  
   "scripts": {
     "start": "node ./bin/www",
     "dev": "nodemon ./bin/www"
@@ -24,6 +23,7 @@
     "jsonwebtoken": "^9.0.2",
     "lodash": "^4.17.21",
     "morgan": "^1.10.0",
+    "multer": "^2.0.1",
     "mysql2": "^3.14.1",
     "nodemailer": "^7.0.4",
     "plaid": "^36.0.0",
