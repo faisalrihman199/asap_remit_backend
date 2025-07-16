@@ -440,6 +440,22 @@ const register = (user) => {
 
   return makeRequest('register', message);
 };
+const initiateAdvancedKYC = async (userHandle, userPrivateKey) => {
+  const fullHandle = getFullHandle(userHandle);
+  const body = setHeaders({ header: {} }, fullHandle);
+  body.message = 'header_msg'; // Required by Sila
+  body.flow = process.env.SILA_KYC_FLOW; 
+
+  return makeRequest('kyc', body, userPrivateKey, undefined, 'post');
+};
+const getKYCVerification = async (userHandle, userPrivateKey, verificationUuid = null) => {
+  const fullHandle = getFullHandle(userHandle);
+  const body = setHeaders({ header: {} }, fullHandle);
+  body.message = 'header_msg';
+
+  const path = verificationUuid ? `get_verification/${verificationUuid}` : 'get_verifications';
+  return makeRequest(path, body, userPrivateKey);
+};
 
 /**
  * Makes a call to /request_kyc endpoint.
@@ -1977,6 +1993,8 @@ export default {
   plaidSamedayAuth,
   redeemSila,
   register,
+  initiateAdvancedKYC,
+  getKYCVerification,
   registerWallet,
   requestKYC,
   setEnvironment,

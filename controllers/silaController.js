@@ -121,6 +121,48 @@ export const registerUser = async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 };
+export const startAdvancedKYC = async (req, res) => {
+  try {
+    const userId = req.user.uid;
+    const silaUser = await models.SilaUser.findOne({ where: { user_id: userId } });
+
+    if (!silaUser) {
+      return res.status(404).json({ error: 'Sila user not found.' });
+    }
+
+    const { userHandle, privateKey } = silaUser;
+
+    // 🔁 Trigger Advanced KYC using /kyc
+    const response = await sila.initiateAdvancedKYC(userHandle, privateKey);
+
+    if (response.status === 'SUCCESS') {
+      await silaUser.update({ kycStatus: 'pending' });
+    }
+
+    return res.status(200).json({ result: response });
+  } catch (error) {
+    console.error('Advanced KYC Error:', error);
+    return res.status(500).json({ error: error.message });
+  }
+};
+export const getKYCVerification = async (req, res) => {
+  try {
+    const userId = req.user.uid;
+    const silaUser = await models.SilaUser.findOne({ where: { user_id: userId } });
+
+    if (!silaUser) return res.status(404).json({ error: 'Sila user not found.' });
+
+    const { userHandle, privateKey } = silaUser;
+    const verificationUuid = req.query.verification_uuid || null;
+
+    const result = await sila.getKYCVerification(userHandle, privateKey, verificationUuid);
+
+    res.status(result.statusCode).json(result.data);
+  } catch (err) {
+    console.error('getKYCVerification error:', err);
+    res.status(500).json({ error: err.message });
+  }
+};
 
 export const uploadKYCDocuments = async (req, res) => {
   try {
@@ -145,7 +187,7 @@ export const uploadKYCDocuments = async (req, res) => {
         name: fieldname.charAt(0).toUpperCase() + fieldname.slice(1),   // e.g. "Passport"
         filename: originalname,                                         // e.g. "passport.jpg"
         mimeType: mimetype,                                             // e.g. "image/jpeg"
-        documentType: 'doc_green_card',                                        // e.g. "passport", "selfie"
+        documentType: fieldname,                                        
         description: `Auto-uploaded ${fieldname}`,                      // Optional
         fileBuffer: buffer,                                             // Required for hash
         fileObject: {                                                   // 💥 Key Fix: pass wrapped object
