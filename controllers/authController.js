@@ -3,16 +3,17 @@ const jwt = require('jsonwebtoken');
 const { User } = require('../models');
 const otpService = require('../services/otp.service');
 const { generateToken } = require('../services/jwt.service');
+const { Op } = require('sequelize');
 
 exports.signup = async (req, res, next) => {
   try {
     const { fullName, email, phoneNumber, password, otp } = req.body;
 
     let otpResult = { success: false };
-    
-    
+
+
     if (email) {
-      otpResult = otpService.verifyOtp(email, otp);      
+      otpResult = otpService.verifyOtp(email, otp);
     }
     if (!otpResult.success && phoneNumber) {
       otpResult = otpService.verifyOtp(phoneNumber, otp);
@@ -22,9 +23,16 @@ exports.signup = async (req, res, next) => {
       return res.status(400).json({ error: otpResult.message || 'Invalid or expired OTP' });
     }
 
-    const existingUser = await User.findOne({ where: { email } });
+    const existingUser = await User.findOne({
+      where: {
+        [Op.or]: [
+          { email },
+          { phoneNumber }
+        ]
+      }
+    });
     if (existingUser) {
-      return res.status(409).json({ error: 'User already exists' });
+      return res.status(409).json({ error: 'Email or Phone Number already exists' });
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
@@ -128,9 +136,9 @@ exports.forgotPassword = async (req, res, next) => {
 exports.changePassword = async (req, res, next) => {
   try {
     console.log("User is :", req.user);
-    
-    const user = req.user; 
-    const checkUser=await User.findByPk(user.uid)
+
+    const user = req.user;
+    const checkUser = await User.findByPk(user.uid)
     const { oldPassword, newPassword } = req.body;
 
     if (!(await bcrypt.compare(oldPassword, checkUser.password))) {

@@ -64,7 +64,7 @@ const User = sequelize.define("user", {
   , 
   {
     timestamp:true,
-    paranoid: true,
+   
   }
 )
   

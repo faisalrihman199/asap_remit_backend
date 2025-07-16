@@ -95,7 +95,7 @@ const SilaUser = sequelize.define('sila_user', {
   },
 }, {
   timestamps: true,
-  paranoid: true,
+
 });
 
 module.exports=SilaUser

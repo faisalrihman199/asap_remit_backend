@@ -16,11 +16,13 @@ const {
   getTransactions,
   cancelTransaction,
   getUserWallet,
+  userHandleKey,
 }=require('../controllers/silaController.js');
 
 
 
 router.get('/check-handle',authMiddleware, checkHandle);
+router.get('/user-handle-key',authMiddleware,userHandleKey);
 router.post('/register',authMiddleware, registerUser);
 router.get('/request-kyc',authMiddleware, requestKYC);
 router.get('/check-kyc',authMiddleware, checkKYC);
