@@ -452,9 +452,20 @@ const getKYCVerification = async (userHandle, userPrivateKey, verificationUuid =
   const fullHandle = getFullHandle(userHandle);
   const body = setHeaders({ header: {} }, fullHandle);
   body.message = 'header_msg';
+  const path = verificationUuid ? `get_verifications/${verificationUuid}` : 'get_verifications';
 
-  const path = verificationUuid ? `get_verification/${verificationUuid}` : 'get_verifications';
   return makeRequest(path, body, userPrivateKey);
+};
+const resumeKYC = async (userHandle, userPrivateKey,verificationUuid, updateType, docIds = []) => {
+  const fullHandle = getFullHandle(userHandle);
+  const body = setHeaders({ header: {} }, fullHandle);
+  body.message = 'header_msg';
+  body.verification_uuid=verificationUuid;
+  body.update=updateType;
+   if (updateType === 'document' && docIds.length > 0) {
+    body.doc_ids = docIds;
+  }
+  return makeRequest('resume_verification', body, userPrivateKey,null,'put');
 };
 
 /**
@@ -1169,7 +1180,7 @@ const uploadDocument = async (userHandle, userPrivateKey, document) => {
  * @param {Array} documents
  *
  */
-const uploadDocuments = async (userHandle, userPrivateKey, documents) => {
+const uploadDocuments = async (userHandle, userPrivateKey, documents,verification_uuid) => {
   const fullHandle = getFullHandle(userHandle);
   const body = setHeaders({ header: {} }, fullHandle);
 
@@ -1196,7 +1207,9 @@ const uploadDocuments = async (userHandle, userPrivateKey, documents) => {
     docBodyObj.document_type = docObj.documentType;
     docBodyObj.description = docObj.description;
 
+
     body.file_metadata['file_' + index] = docBodyObj;
+    body.verification_uuid=verification_uuid;
   }
   return makeFileRequest('documents', body, filePaths, fileObjects, userPrivateKey);
 };
@@ -1995,6 +2008,7 @@ export default {
   register,
   initiateAdvancedKYC,
   getKYCVerification,
+  resumeKYC,
   registerWallet,
   requestKYC,
   setEnvironment,

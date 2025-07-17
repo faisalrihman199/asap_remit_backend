@@ -153,13 +153,31 @@ export const getKYCVerification = async (req, res) => {
     if (!silaUser) return res.status(404).json({ error: 'Sila user not found.' });
 
     const { userHandle, privateKey } = silaUser;
+
     const verificationUuid = req.query.verification_uuid || null;
+    
+    
 
     const result = await sila.getKYCVerification(userHandle, privateKey, verificationUuid);
 
     res.status(result.statusCode).json(result.data);
   } catch (err) {
     console.error('getKYCVerification error:', err);
+    res.status(500).json({ error: err.message });
+  }
+};
+export const ListDocuments = async (req, res) => {
+  try {
+    const userId = req.user.uid;
+    const silaUser = await models.SilaUser.findOne({ where: { user_id: userId } });
+
+    if (!silaUser) return res.status(404).json({ error: 'Sila user not found.' });
+
+    const { userHandle, privateKey } = silaUser;
+    const result = await sila.listDocuments(userHandle, privateKey);
+    res.status(result.statusCode).json(result.data);
+  } catch (err) {
+    console.error('List Dosc error:', err);
     res.status(500).json({ error: err.message });
   }
 };
@@ -178,7 +196,7 @@ export const uploadKYCDocuments = async (req, res) => {
     if (!req.files || req.files.length === 0) {
       return res.status(400).json({ error: 'No files uploaded.' });
     }
-
+    const {verification_uuid} =req.body;
     // 👇 Build documents array using correct buffer and metadata format
     const documents = req.files.map((file) => {
       const { fieldname, originalname, mimetype, buffer } = file;
@@ -200,7 +218,7 @@ export const uploadKYCDocuments = async (req, res) => {
     console.log("Just before");
 
     // ✅ Upload to Sila using same tested logic
-    const result = await sila.uploadDocuments(userHandle, privateKey, documents);
+    const result = await sila.uploadDocuments(userHandle, privateKey, documents,verification_uuid);
 
     if (!result.data || result.data.status !== 'SUCCESS') {
       return res.status(400).json({ error: 'Document upload failed', details: result });
@@ -210,6 +228,37 @@ export const uploadKYCDocuments = async (req, res) => {
   } catch (err) {
     console.error('uploadUserDocuments error:', err);
     return res.status(500).json({ error: err.message });
+  }
+};
+
+export const resumeVerification = async (req, res) => {
+  try {
+    const userId = req.user.uid;
+
+    const silaUser = await models.SilaUser.findOne({ where: { user_id: userId } });
+    if (!silaUser) {
+      return res.status(404).json({ error: 'Sila user not found.' });
+    }
+
+    const { userHandle, privateKey } = silaUser;
+    const { verification_uuid, update, doc_ids = [] } = req.body;
+
+    if (!verification_uuid || !update) {
+      return res.status(400).json({ error: 'verification_uuid and update are required.' });
+    }
+
+    const result = await sila.resumeKYC(
+      userHandle,
+      privateKey,
+      verification_uuid,
+      update,
+      doc_ids
+    );
+
+    res.status(result.statusCode).json(result.data);
+  } catch (err) {
+    console.error('resumeVerification error:', err);
+    res.status(500).json({ error: err.message });
   }
 };
 

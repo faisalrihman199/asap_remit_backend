@@ -21,13 +21,17 @@ const {
   uploadKYCDocuments,
   startAdvancedKYC,
   getKYCVerification,
+  resumeVerification,
+  ListDocuments,
 }=require('../controllers/silaController.js');
 
 
 
 router.post('/kyc/documents',authMiddleware, upload.any(), uploadKYCDocuments);
+router.get('/kyc/documents',authMiddleware, ListDocuments);
 router.get('/kyc/advance',authMiddleware, startAdvancedKYC);
 router.get('/kyc/advance-verification',authMiddleware, getKYCVerification);
+router.post('/kyc/resume',authMiddleware, resumeVerification);
 router.get('/check-handle',authMiddleware, checkHandle);
 router.get('/user-handle-key',authMiddleware,userHandleKey);
 router.post('/register',authMiddleware, registerUser);
