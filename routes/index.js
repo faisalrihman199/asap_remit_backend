@@ -11,5 +11,7 @@ router.use('/sila',require('./sila'));
 router.use('/plaid',require('./plaid'));
 router.use('/otp',require('./otp'));
 router.use('/auth',require('./auth'));
+router.use('/outpay',require('./outPayout'));
+router.use('/yc',require('./yc'));
 
 module.exports = router;

@@ -534,19 +534,14 @@ export const issueSila = async (req, res) => {
 export const getTransactions = async (req, res) => {
   try {
     const userId = req.user.uid;
-
     const silaUser = await models.SilaUser.findOne({ where: { user_id: userId } });
-
     if (!silaUser) {
       return res.status(404).json({ error: 'Sila user not found.' });
     }
-
     const response = await sila.getTransactions(
       silaUser.userHandle,
       silaUser.privateKey,
-
     );
-
     res.status(response.statusCode).json(response.data);
   } catch (err) {
     res.status(500).json({ error: err.message });
