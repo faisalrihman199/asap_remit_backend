@@ -73,3 +73,16 @@ exports.createYcPayment = async (req, res) => {
     return res.status(400).json({ error: e.message, yc });
   }
 };
+
+
+exports.getYcPayment = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const r = await ycExt.getPaymentById(id);
+    return res.status(200).json({ id, status: r.status, raw: r.raw });
+  } catch (e) {
+    const yc = e?.response?.data;
+    console.error('getYcPayment error:', yc || e);
+    return res.status(500).json({ error: e.message, yc });
+  }
+};
