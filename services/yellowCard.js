@@ -2,65 +2,75 @@
 const axios = require('axios');
 const crypto = require('crypto');
 
-// If you load dotenv elsewhere, keep this commented.
-// require('dotenv').config();
-
-// --- CONFIG ---
-// For sandbox testing you can hardcode; otherwise use envs.
 const baseURL =
-  process.env.YC_BASE_URL ||
-  'https://sandbox.api.yellowcard.io/business';
+  process.env.YC_BASE_URL || 'https://sandbox.api.yellowcard.io/business';
 
 const API_KEY =
   process.env.YC_API_KEY || '32e20a2563bd3cc9b7120dfd05f39148';
-
 const API_SECRET =
   process.env.YC_API_SECRET || '1ad5f97bcc843e5c91b0cebe55fd20bef0bda03a0353b30da2c270848e55695a';
 
 if (!API_KEY || !API_SECRET) {
-  throw new Error('Missing YC_API_KEY / YC_API_SECRET (or test hardcodes) for Yellow Card client');
+  throw new Error('Missing YC_API_KEY / YC_API_SECRET for Yellow Card client');
 }
 
 const YC = axios.create({ baseURL });
 
-// Build EXACT path to sign: must include '/business', exclude query string
+// small helpers to be compatible with Axios v1’s AxiosHeaders
+function setHdr(cfg, key, val) {
+  if (!cfg.headers) cfg.headers = {};
+  if (typeof cfg.headers.set === 'function') cfg.headers.set(key, val);
+  else cfg.headers[key] = val;
+}
+function getHdr(cfg, key) {
+  if (!cfg?.headers) return undefined;
+  if (typeof cfg.headers.get === 'function') return cfg.headers.get(key);
+  return cfg.headers[key];
+}
+
 YC.interceptors.request.use((config) => {
-  const ts = new Date().toISOString();
-  const method = (config.method || 'GET').toUpperCase();
-
-  const basePath = new URL(baseURL).pathname.replace(/\/$/, ''); // '/business'
-  const rawUrl = config.url || '';
-
-  // Derive request path whether relative or absolute
-  let reqPath;
-  if (/^https?:\/\//i.test(rawUrl)) {
-    reqPath = new URL(rawUrl).pathname;
-  } else {
-    reqPath = rawUrl.split('?')[0];
-    if (!reqPath.startsWith('/')) reqPath = '/' + reqPath;
+  // 1) normalize URL to always start with '/'
+  if (config.url && !/^https?:\/\//i.test(config.url) && !config.url.startsWith('/')) {
+    config.url = '/' + config.url;
   }
 
-  const pathToSign =
-    (reqPath === basePath || reqPath.startsWith(basePath + '/'))
-      ? reqPath
-      : basePath + reqPath;
+  // 2) compute exact path to sign: include '/business', exclude query
+  const ts = new Date().toISOString();
+  const basePath = new URL(baseURL).pathname.replace(/\/$/, ''); // '/business'
+  const rawUrl = config.url || '/';
+  const relPath = rawUrl.split('?')[0]; // strip query for signing
+  const pathToSign = (relPath.startsWith(basePath) ? relPath : basePath + relPath);
+  const method = (config.method || 'GET').toUpperCase();
 
   let message = `${ts}${pathToSign}${method}`;
-  if (method === 'POST' || method === 'PUT') {
+  if (method === 'POST' || method === 'PUT' || method === 'PATCH') {
     const bodyStr = config.data ? JSON.stringify(config.data) : '';
     const bodyHash = crypto.createHash('sha256').update(bodyStr).digest('base64');
     message += bodyHash;
-    if (!config.headers['Content-Type']) config.headers['Content-Type'] = 'application/json';
+    if (!getHdr(config, 'Content-Type')) setHdr(config, 'Content-Type', 'application/json');
   }
 
   const sig = crypto.createHmac('sha256', API_SECRET).update(message).digest('base64');
 
-  config.headers['X-YC-Timestamp'] = ts;
-  config.headers.Authorization = `YcHmacV1 ${API_KEY}:${sig}`;
+  // 3) set headers in a way Axios v1 won’t drop
+  setHdr(config, 'X-YC-Timestamp', ts);
+  setHdr(config, 'Authorization', `YcHmacV1 ${API_KEY}:${sig}`);
+
+  // Optional debug: set DEBUG_YC=1 in env to log outgoing headers (redacted)
+  if (process.env.DEBUG_YC === '1') {
+    const auth = getHdr(config, 'Authorization') || getHdr(config, 'authorization');
+    const xyc  = getHdr(config, 'X-YC-Timestamp') || getHdr(config, 'x-yc-timestamp');
+    console.log('[YC] →', method, config.url, {
+      hasAuth: Boolean(auth),
+      hasTimestamp: Boolean(xyc),
+      contentType: getHdr(config, 'Content-Type') || getHdr(config, 'content-type'),
+    });
+  }
+
   return config;
 });
 
-// Optional: better message when your IP hits Cloudflare WAF
+// Nice-to-have: friendlier message if Cloudflare blocks you
 YC.interceptors.response.use(
   r => r,
   err => {
@@ -73,7 +83,7 @@ YC.interceptors.response.use(
       const ip  = /id="cf-footer-ip">([^<]+)/i.exec(res.data)?.[1] || 'unknown';
       err.message = `Yellow Card WAF blocked this IP (${ip}). Cloudflare Ray ID: ${ray}. Ask YC to allowlist this IP for sandbox.`;
     }
-    throw err;
+    return Promise.reject(err);
   }
 );
 
