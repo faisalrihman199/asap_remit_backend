@@ -3,7 +3,6 @@ const { v4: uuidv4 } = require('uuid');
 const { pollUntil } = require('../utils/poll');
 const ycExt = require('../services/yellowCardExt');
 
-// POST /yc/payments
 exports.createYcPayment = async (req, res) => {
   try {
     const {
@@ -13,11 +12,11 @@ exports.createYcPayment = async (req, res) => {
       beneficiary = {},       // bank: { name, country:'NG', account_number:'1111111111', bank_code:'044', bank_name? }
       country = beneficiary.country || 'NG',
       channelType = 'bank',   // 'bank' | 'momo'
-      channelId,              // optional; will auto-resolve
+      channelId,              // optional
       reason = 'other',
-      sequenceId,             // optional
+      sequenceId,
       wait = true,
-      sender                  // optional; we’ll default if not provided
+      sender
     } = req.body;
 
     const finalSender = (sender && sender.name && sender.country) ? sender : {
@@ -29,7 +28,7 @@ exports.createYcPayment = async (req, res) => {
       dob: '01/01/1990',
       idType: 'license',
       idNumber: 'A1234567'
-      // If you set country: 'NG', YC may require NIN + BVN as extra IDs.
+      // If you switch to sender.country='NG', YC may require NIN/BVN in sandbox.
     };
 
     if (!beneficiary.name) return res.status(400).json({ error: 'beneficiary.name is required' });
@@ -70,20 +69,19 @@ exports.createYcPayment = async (req, res) => {
 
     return res.status(200).json({ ok: true, id: payment.id, status: 'completed' });
   } catch (e) {
-    const yc = e?.response?.data || undefined;
+    const yc = e?.response?.data;
     console.error('createYcPayment error:', yc || e);
     return res.status(400).json({ error: e.message, yc });
   }
 };
 
-// GET /yc/payments/:id
 exports.getYcPayment = async (req, res) => {
   try {
     const { id } = req.params;
     const r = await ycExt.getPaymentById(id);
     return res.status(200).json({ id, status: r.status, raw: r.raw });
   } catch (e) {
-    const yc = e?.response?.data || undefined;
+    const yc = e?.response?.data;
     console.error('getYcPayment error:', yc || e);
     return res.status(500).json({ error: e.message, yc });
   }
