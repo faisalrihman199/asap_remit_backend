@@ -7,7 +7,7 @@ const { Op } = require('sequelize');
 
 exports.signup = async (req, res, next) => {
   try {
-    const { fullName, email, phoneNumber, password, otp } = req.body;
+    const { fullName, email, phoneNumber, password, otp,username } = req.body;
 
     let otpResult = { success: false };
 
@@ -41,6 +41,7 @@ exports.signup = async (req, res, next) => {
       fullName,
       email,
       phoneNumber,
+      username,
       password: hashedPassword
     });
 
@@ -54,7 +55,8 @@ exports.signup = async (req, res, next) => {
         email: user.email,
         phoneNumber: user.phoneNumber,
         fullName: user.fullName,
-        role: user.role
+        role: user.role,
+        username:user.username
       }
     });
 
